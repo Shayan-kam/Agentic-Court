@@ -1,0 +1,13 @@
+# Ignore the environment variables (CRITICAL)
+.env
+
+# Ignore Python's internal caches
+__pycache__/
+*.pyc
+
+# Ignore the virtual environment
+venv/
+.venv/
+
+# Ignore the PDFs you generate (so your repo doesn't get bulky)
+*.pdf
