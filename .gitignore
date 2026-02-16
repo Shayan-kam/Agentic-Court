@@ -11,3 +11,6 @@ venv/
 
 # Ignore the PDFs you generate (so your repo doesn't get bulky)
 *.pdf
+
+# Ignore Specific mac files
+*.DS_Store
