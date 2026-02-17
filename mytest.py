@@ -103,4 +103,4 @@ if __name__ == "__main__":
             print(prediction)
             print("-" * 40)
         else:
-            print(f"❌ {stats}")
+            print(f"❌ {stats}")print('Prian is testing')
