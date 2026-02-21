@@ -78,10 +78,7 @@ User input: "{user_input}"
 
 # --- Chat handler ---
 def chat_handler(message, history):
-    # Step 1: AI extraction
     details = extract_details_with_ai(message)
-
-    # Step 2: Fallback parser if AI fails
     if not details or len(details.get("player", "")) < 2:
         details = fallback_extract(message)
 
@@ -92,14 +89,23 @@ def chat_handler(message, history):
 
     # Step 3: Fetch NBA data
     real_name, stats_df = get_last_5_games(player_name)
+    
+    # If stats_df is None, real_name contains the error message from get_last_5_games
     if stats_df is None:
-        return f"⚠️ {real_name}"
+        return f"⚠️ {real_name}" 
+    
+    # If the dataframe is empty, we found the player but have no logs
+    if stats_df.empty:
+        return f"⚠️ I found {real_name}, but no game logs were returned for this season."
 
+    formatted_stats = stats_df.to_string(index=False)
+    
+    # ... rest of your AI logic ...
     # Step 4: AI analysis with fallback
     analysis_prompt = f"""
 You are a professional sports analyst.
 Predict {direction.upper()} or UNDER {line} {stat_type} for {real_name} based on these 5 games:
-{stats_df.to_string(index=False)}
+{formatted_stats}
 Respond with a short recommendation.
 """
     try:
