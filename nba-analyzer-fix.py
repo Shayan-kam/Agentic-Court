@@ -20,21 +20,24 @@ if not OPENAI_API_KEY:
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# --- Strong Mac-Compatible Headers ---
+# --- 2026 Optimized NBA Headers ---
 CUSTOM_HEADERS = {
     "Host": "stats.nba.com",
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": "https://www.nba.com/",
     "Origin": "https://www.nba.com",
     "Connection": "keep-alive",
+    "x-nba-stats-origin": "stats",
+    "x-nba-stats-token": "true",
 }
 
-# --- Fetch last 5 games (2025-26) ---
-def get_last_5_games(player_name, retries=3):
+# --- Fetch last 5 games with Exponential Backoff ---
+def get_last_5_games(player_name, retries=4):
     for attempt in range(retries):
         try:
+            # Step 1: Find the player
             nba_players = players.find_players_by_full_name(player_name)
             if not nba_players:
                 return None, f"Could not find '{player_name}'."
@@ -42,14 +45,18 @@ def get_last_5_games(player_name, retries=3):
             player_id = nba_players[0]["id"]
             full_name = nba_players[0]["full_name"]
 
-            # small delay to reduce rate limiting
-            time.sleep(1)
+            # Step 2: Implement a longer sleep for bot evasion
+            # 1st attempt: 2s, 2nd: 5s, 3rd: 10s
+            wait_time = (attempt * 5) + 2 
+            time.sleep(wait_time)
 
+            print(f"📡 Attempt {attempt+1}: Fetching stats for {full_name}...")
+            
             gamelog = playergamelog.PlayerGameLog(
                 player_id=player_id,
                 season="2025-26",
                 headers=CUSTOM_HEADERS,
-                timeout=15
+                timeout=30 # Increased for 2026 server stability
             )
 
             df = gamelog.get_data_frames()[0]
@@ -63,11 +70,13 @@ def get_last_5_games(player_name, retries=3):
 
             return full_name, subset
 
-        except Exception:
-            if attempt < retries - 1:
-                time.sleep(3)
-            else:
-                return None, "NBA API blocked or timed out after multiple attempts."
+        except Exception as e:
+            print(f"⚠️ Attempt {attempt+1} failed: {e}")
+            if attempt == retries - 1:
+                return None, "The NBA servers are currently blocking our connection. Try switching to a mobile hotspot or waiting 15 minutes."
+
+# --- AI Extraction & Rest of logic remains same ---
+# (Rest of your script: extract_details_with_ai, fallback_extract, chat_handler, respond, gr.Blocks)
 
 # --- AI Extraction ---
 def extract_details_with_ai(user_input):
