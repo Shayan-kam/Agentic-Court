@@ -5,53 +5,46 @@ from pypdf import PdfReader
 import gradio as gr
 from pydantic import BaseModel
 
-# 1. Setup and Authentication
+# 1. Setup
 load_dotenv(override=True)
-client = OpenAI() # Uses OPENAI_API_KEY from .env
+client = OpenAI()
 
 # 2. Load Data
-# Ensure these files exist in a folder named 'me'
-reader = PdfReader("me/linkedin.pdf")
-linkedin_text = ""
+reader = PdfReader("./LeBron_James_Career_Stats.pdf")
+Player_stats = ""
 for page in reader.pages:
     text = page.extract_text()
     if text:
-        linkedin_text += text
+        Player_stats += text
 
-with open("me/summary.txt", "r", encoding="utf-8") as f:
-    summary_text = f.read()
-
-name = "Shayan Kamalesh"
-
-# 3. Define System Prompts
+# 3. System Prompts
 system_prompt = f"""
-You are acting as {name}. You are answering questions on {name}'s website, 
-particularly questions related to {name}'s career, background, skills and experience. 
-Your responsibility is to represent {name} for interactions on the website as faithfully as possible. 
-You are given a summary of {name}'s background and LinkedIn profile which you can use to answer questions. 
-Be professional and engaging, as if talking to a potential client or future employer. 
+You are acting as a proffesional sports analyst. You are answering questions based on the PDF with a basektball
+players seasonal infromation, 
+particularly information related to Lebron career, background, skills and experience. 
+Your responsibility is to represent a sports Analyst who decifiers through the infromation provided
+and creates Mathematical and beyond calulations to prdecit Lebrons preformance for the next season. 
+You are to provide what his precidted stats would be in a easily readable format. 
+Be professional and engaging, as if talking to a client. 
 If you don't know the answer, say so.
 
-## Summary:
-{summary_text}
 
-## LinkedIn Profile:
-{linkedin_text}
+## Player Profile:
+{Player_stats}
 
-With this context, please chat with the user, always staying in character as {name}.
+With this context, please chat with the user, always staying in character as a sports analyst.
 """
 
 evaluator_system_prompt = f"""
 You are an evaluator that decides whether a response to a question is acceptable. 
-The Agent is playing the role of {name}. 
-The Agent must be professional and engaging. 
+The Agent is playing the role of a sports analyst who predicts Lebrons prefromace for the next season
+based on this infromation {Player_stats}. 
+The Agent must be professional and concise. 
 Evaluate if the latest response is high quality and accurate based on the provided context.
 
-## Summary:
-{summary_text}
 
-## LinkedIn Profile:
-{linkedin_text}
+## Player Profile:
+{Player_stats}
 """
 
 # 4. Evaluation Logic
@@ -60,19 +53,11 @@ class Evaluation(BaseModel):
     feedback: str
 
 def evaluate(reply, message, history) -> Evaluation:
-    eval_user_content = f"""
-    Conversation History: {history}
-    User's latest message: {message}
-    Agent's latest response: {reply}
-    Please evaluate the response.
-    """
-    
+    eval_user_content = f"History: {history}\nLatest: {message}\nResponse: {reply}"
     messages = [
         {"role": "system", "content": evaluator_system_prompt},
         {"role": "user", "content": eval_user_content}
     ]
-    
-    # Using structured outputs (parsing into the Evaluation class)
     completion = client.beta.chat.completions.parse(
         model="gpt-4o-mini",
         messages=messages,
@@ -81,38 +66,36 @@ def evaluate(reply, message, history) -> Evaluation:
     return completion.choices[0].message.parsed
 
 def rerun(reply, message, history, feedback):
-    updated_prompt = system_prompt + f"""
-    \n\n## Previous answer rejected
-    Your last attempt was rejected for: {feedback}
-    Your attempted answer was: {reply}
-    Please try again, addressing the feedback.
-    """
+    updated_prompt = system_prompt + f"\n\nReject feedback: {feedback}"
     messages = [{"role": "system", "content": updated_prompt}] + history + [{"role": "user", "content": message}]
     response = client.chat.completions.create(model="gpt-4o-mini", messages=messages)
     return response.choices[0].message.content
 
-# 5. Main Chat Function
+# 5. Main Chat Function (REFORMATTED FOR COMPATIBILITY)
 def chat(message, history):
-    # Clean history for non-OpenAI providers if necessary
-    history = [{"role": h["role"], "content": h["content"]} for h in history]
+    # This loop ensures the history works even if Gradio version is 'weird'
+    formatted_history = []
+    for turn in history:
+        # Check if history is old [user, bot] format or new {role, content} format
+        if isinstance(turn, dict):
+            formatted_history.append(turn)
+        else:
+            formatted_history.append({"role": "user", "content": turn[0]})
+            formatted_history.append({"role": "assistant", "content": turn[1]})
     
-    messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": message}]
+    messages = [{"role": "system", "content": system_prompt}] + formatted_history + [{"role": "user", "content": message}]
     
-    # Generate initial response
     response = client.chat.completions.create(model="gpt-4o-mini", messages=messages)
     reply = response.choices[0].message.content
 
-    # Evaluate response
-    evaluation = evaluate(reply, message, history)
+    evaluation = evaluate(reply, message, formatted_history)
     
     if evaluation.is_acceptable:
-        print("Passed evaluation")
         return reply
     else:
-        print(f"Failed evaluation: {evaluation.feedback}")
-        # Retry once with feedback
-        return rerun(reply, message, history, evaluation.feedback)
+        return rerun(reply, message, formatted_history, evaluation.feedback)
 
-# 6. Launch UI
+# 6. Launch UI (REMOVED 'type' ARGUMENT)
 if __name__ == "__main__":
-    gr.ChatInterface(chat, type="messages").launch()
+    # Removing 'type' avoids the TypeError entirely
+    gr.ChatInterface(chat).launch()
